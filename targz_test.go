@@ -37,8 +37,9 @@ func TestArchiveDir(t *testing.T) {
 		name := filepath.Join(srcDir, files[i])
 		f, err := os.Create(name)
 		require.NoError(t, err)
-		f.Write(dummyData)
-		f.Close()
+		_, err = f.Write(dummyData)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
 		paths[i] = name
 	}
 
@@ -47,8 +48,9 @@ func TestArchiveDir(t *testing.T) {
 	require.NoError(t, err)
 	f, err := os.Create(filepath.Join(subDir, subFileName))
 	require.NoError(t, err)
-	f.Write(dummyData)
-	f.Close()
+	_, err = f.Write(dummyData)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
 
 	tarPath := filepath.Join(tmpDir, archName)
 	err = targz.Create(srcDir, tarPath)
@@ -91,7 +93,7 @@ func TestArchiveDir(t *testing.T) {
 	require.Equal(t, path.Join(srcName, subDirName, subFileName), hdr.Name)
 
 	// Check that no additional files are in archive.
-	hdr, err = tr.Next()
+	_, err = tr.Next()
 	require.ErrorIs(t, err, io.EOF, "archive has wrong number of items")
 
 	// Remove the source directory to prepare for extraction test.
@@ -156,8 +158,9 @@ func TestIgnore(t *testing.T) {
 		name := filepath.Join(srcDir, files[i])
 		f, err := os.Create(name)
 		require.NoError(t, err)
-		f.Write(dummyData)
-		f.Close()
+		_, err = f.Write(dummyData)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
 		paths[i] = name
 	}
 

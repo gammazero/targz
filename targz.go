@@ -61,7 +61,7 @@ func Create(dir, tarPath string, options ...Option) error {
 	}
 
 	if parent != "." {
-		os.Chdir(cwd)
+		_ = os.Chdir(cwd)
 	}
 
 	// Close tar writer; flush tar data to gzip writer
