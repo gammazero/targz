@@ -177,9 +177,14 @@ func Extract(tarPath, targetDir string) error {
 		return err
 	}
 	defer f.Close()
+	return ExtractReader(f, targetDir)
+}
 
+// ExtractReader reads gzipped tar data from io.Reader and extracts it into the
+// target directory.
+func ExtractReader(r io.Reader, targetDir string) error {
 	// gzip reader reads from archive file.
-	gzr, err := gzip.NewReader(f)
+	gzr, err := gzip.NewReader(r)
 	if err != nil {
 		return err
 	}
@@ -197,12 +202,13 @@ func Extract(tarPath, targetDir string) error {
 	tr := tar.NewReader(gzr)
 	for {
 		header, err := tr.Next()
-		switch {
-		case err == io.EOF:
-			return nil
-		case err != nil:
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
 			return err
-		case header == nil:
+		}
+		if header == nil {
 			continue
 		}
 
@@ -263,4 +269,6 @@ func Extract(tarPath, targetDir string) error {
 			}
 		}
 	}
+
+	return nil
 }
