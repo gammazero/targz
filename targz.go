@@ -22,8 +22,6 @@ import (
 // its parent path, is added to the tar archive. When extracted, a "weekly"
 // directory is created with all of its archived contents.
 func Create(dir, tarPath string, options ...Option) error {
-	opts := getOpts(options)
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -36,8 +34,20 @@ func Create(dir, tarPath string, options ...Option) error {
 	if err != nil {
 		return err
 	}
-	defer tarfile.Close()
-	wr := bufio.NewWriter(tarfile)
+	if err = CreateWriter(dir, tarfile, options...); err != nil {
+		tarfile.Close()
+		return err
+	}
+	// Close tar file.
+	return tarfile.Close()
+}
+
+// Create writes a gzip compressed tar file to an io.Writer. The tar file
+// contains the contents of the specified directory.
+func CreateWriter(dir string, w io.Writer, options ...Option) error {
+	opts := getOpts(options)
+
+	wr := bufio.NewWriter(w)
 
 	// gzip writer writes to buffer.
 	gzw := gzip.NewWriter(wr)
@@ -46,22 +56,9 @@ func Create(dir, tarPath string, options ...Option) error {
 	tw := tar.NewWriter(gzw)
 	defer tw.Close()
 
-	dir = strings.TrimRight(dir, string(filepath.Separator))
-	parent := filepath.Dir(dir)
-	dir = filepath.Base(dir)
-	if parent != "." {
-		if err = os.Chdir(parent); err != nil {
-			return err
-		}
-	}
-
-	err = tarAddDir(dir, opts.ignores, tw)
+	err := tarAddDir(dir, opts.ignores, tw)
 	if err != nil {
 		return err
-	}
-
-	if parent != "." {
-		_ = os.Chdir(cwd)
 	}
 
 	// Close tar writer; flush tar data to gzip writer
@@ -72,19 +69,26 @@ func Create(dir, tarPath string, options ...Option) error {
 	if err = gzw.Close(); err != nil {
 		return err
 	}
-	// Flush buffered data to file.
-	if err = wr.Flush(); err != nil {
-		return err
-	}
-	// Close tar file.
-	if err = tarfile.Close(); err != nil {
-		return err
-	}
-	return nil
+	// Flush buffered data to writer.
+	return wr.Flush()
 }
 
 // tarAddDir recursively writes all files and subdirectories to the tar writer.
 func tarAddDir(dir string, ignores []string, tw *tar.Writer) error {
+	dir = strings.TrimRight(dir, string(filepath.Separator))
+	parent := filepath.Dir(dir)
+	dir = filepath.Base(dir)
+	if parent != "." {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		if err := os.Chdir(parent); err != nil {
+			return err
+		}
+		defer os.Chdir(cwd)
+	}
+
 	var ignoreMap map[string]struct{}
 	if len(ignores) != 0 {
 		ignoreMap = make(map[string]struct{}, len(ignores))
