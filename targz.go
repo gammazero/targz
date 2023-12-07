@@ -83,9 +83,10 @@ func tarAddDir(dir string, ignores []string, tw *tar.Writer) error {
 		if err != nil {
 			return err
 		}
-		if err := os.Chdir(parent); err != nil {
+		if err = os.Chdir(parent); err != nil {
 			return err
 		}
+		//nolint:errcheck
 		defer os.Chdir(cwd)
 	}
 
