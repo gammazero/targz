@@ -1,4 +1,9 @@
 # targz
+
+[![GoDoc](https://pkg.go.dev/badge/github.com/gammazero/targz)](https://pkg.go.dev/github.com/gammazero/targz)
+[![Build Status](https://github.com/gammazero/targz/actions/workflows/go.yml/badge.svg)](https://github.com/gammazero/targz/actions/workflows/go.yml)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Archive directory to tar.gz and extract tar.gz to directory
 
 ## Example
