@@ -35,7 +35,7 @@ func Create(dir, tarPath string, options ...Option) error {
 		return err
 	}
 	if err = CreateWriter(dir, tarfile, options...); err != nil {
-		tarfile.Close()
+		_ = tarfile.Close()
 		return err
 	}
 	// Close tar file.
@@ -51,18 +51,19 @@ func CreateWriter(dir string, w io.Writer, options ...Option) error {
 
 	// gzip writer writes to buffer.
 	gzw := gzip.NewWriter(wr)
-	defer gzw.Close()
 	// tar writer writes to gzip.
 	tw := tar.NewWriter(gzw)
-	defer tw.Close()
 
 	err := tarAddDir(dir, opts.ignores, tw)
 	if err != nil {
+		_ = tw.Close()
+		_ = gzw.Close()
 		return err
 	}
 
 	// Close tar writer; flush tar data to gzip writer
 	if err = tw.Close(); err != nil {
+		_ = gzw.Close()
 		return err
 	}
 	// Close gzip writer; finish writing gzip data to buffer.
@@ -166,10 +167,13 @@ func tarAddDir(dir string, ignores []string, tw *tar.Writer) error {
 				return err
 			}
 			if _, err = io.Copy(tw, f); err != nil {
-				f.Close()
+				_ = f.Close()
 				return err
 			}
-			f.Close()
+			err = f.Close()
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return tw.Flush()
@@ -181,19 +185,23 @@ func Extract(tarPath, targetDir string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	return ExtractReader(f, targetDir)
+	err = ExtractFromReader(f, targetDir)
+	if err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
 }
 
-// ExtractReader reads gzipped tar data from io.Reader and extracts it into the
-// target directory.
-func ExtractReader(r io.Reader, targetDir string) error {
+// ExtractFromReader reads gzipped tar data from io.Reader and extracts it into
+// the target directory.
+func ExtractFromReader(r io.Reader, targetDir string) error {
 	// gzip reader reads from archive file.
 	gzr, err := gzip.NewReader(r)
 	if err != nil {
 		return err
 	}
-	defer gzr.Close()
+	defer gzr.Close() //nolint:errcheck
 
 	if targetDir == "" {
 		targetDir = "."
@@ -263,10 +271,12 @@ func ExtractReader(r io.Reader, targetDir string) error {
 			}
 
 			if _, err = io.Copy(f, tr); err != nil {
-				f.Close()
+				_ = f.Close()
 				return err
 			}
-			f.Close()
+			if err = f.Close(); err != nil {
+				return err
+			}
 
 			if uid != -1 || gid != -1 {
 				// Ignore error; may not be allowed on NAS.

@@ -62,12 +62,16 @@ func TestArchiveDir(t *testing.T) {
 
 	f, err = os.Open(tarPath)
 	require.NoError(t, err)
-	defer f.Close()
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
 
 	// Read the archive.
 	gzr, err := gzip.NewReader(f)
 	require.NoError(t, err)
-	defer gzr.Close()
+	t.Cleanup(func() {
+		require.NoError(t, gzr.Close())
+	})
 
 	tr := tar.NewReader(gzr)
 	hdr, err := tr.Next()
@@ -174,12 +178,16 @@ func TestIgnore(t *testing.T) {
 
 	f, err := os.Open(tarPath)
 	require.NoError(t, err)
-	defer f.Close()
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
 
 	// Read the subarchive and make sure it has each of the files
 	gzr, err := gzip.NewReader(f)
 	require.NoError(t, err)
-	defer gzr.Close()
+	t.Cleanup(func() {
+		require.NoError(t, gzr.Close())
+	})
 
 	tr := tar.NewReader(gzr)
 	hdr, err := tr.Next()
