@@ -53,7 +53,7 @@ func TestArchiveDir(t *testing.T) {
 	require.NoError(t, f.Close())
 
 	tarPath := filepath.Join(tmpDir, archName)
-	err = targz.Create(srcDir, tarPath)
+	err = targz.ArchiveToFile(srcDir, tarPath)
 	require.NoError(t, err)
 
 	fi, err := os.Stat(tarPath)
@@ -104,7 +104,7 @@ func TestArchiveDir(t *testing.T) {
 	require.NoError(t, os.RemoveAll(srcDir))
 
 	// Extract the archive.
-	err = targz.Extract(tarPath, tmpDir)
+	err = targz.ExtractFromFile(tarPath, tmpDir)
 	require.NoError(t, err)
 
 	// Verify directory contents.
@@ -169,7 +169,7 @@ func TestIgnore(t *testing.T) {
 	}
 
 	tarPath := filepath.Join(tmpDir, archName)
-	err = targz.Create(srcDir, tarPath, targz.WithIgnore("baz.txt"))
+	err = targz.ArchiveToFile(srcDir, tarPath, targz.WithIgnore("baz.txt"))
 	require.NoError(t, err)
 
 	fi, err := os.Stat(tarPath)

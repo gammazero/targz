@@ -14,14 +14,14 @@ import (
 	"strings"
 )
 
-// Create creates a gzip compressed tar file containing the contents of the
-// specified directory.
+// ArchiveToFile creates a gzip compressed tar file containing the contents of
+// the specified directory.
 //
 // If the directory to archive is specified by a path such as
 // "/tmp/myfiles/backups/weekly", then only the "weekly" directory, and none of
 // its parent path, is added to the tar archive. When extracted, a "weekly"
 // directory is created with all of its archived contents.
-func Create(dir, tarPath string, options ...Option) error {
+func ArchiveToFile(dir, tarPath string, options ...Option) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -34,7 +34,7 @@ func Create(dir, tarPath string, options ...Option) error {
 	if err != nil {
 		return err
 	}
-	if err = CreateWriter(dir, tarfile, options...); err != nil {
+	if err = ArchiveToWriter(dir, tarfile, options...); err != nil {
 		_ = tarfile.Close()
 		return err
 	}
@@ -42,9 +42,9 @@ func Create(dir, tarPath string, options ...Option) error {
 	return tarfile.Close()
 }
 
-// Create writes a gzip compressed tar file to an io.Writer. The tar file
+// ArchiveToWriter a gzip compressed tar file to an io.Writer. The tar file
 // contains the contents of the specified directory.
-func CreateWriter(dir string, w io.Writer, options ...Option) error {
+func ArchiveToWriter(dir string, w io.Writer, options ...Option) error {
 	opts := getOpts(options)
 
 	wr := bufio.NewWriter(w)
@@ -179,8 +179,8 @@ func tarAddDir(dir string, ignores []string, tw *tar.Writer) error {
 	return tw.Flush()
 }
 
-// Extract reads gzipped tar data from file into a directory.
-func Extract(tarPath, targetDir string) error {
+// ExtractFromFile reads gzipped tar data from file into a directory.
+func ExtractFromFile(tarPath, targetDir string) error {
 	f, err := os.Open(tarPath)
 	if err != nil {
 		return err
