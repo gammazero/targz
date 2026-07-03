@@ -12,29 +12,27 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/gammazero/fsutil"
 )
 
-// Create creates a gzip compressed tar file containing the contents of the
-// specified directory.
+// ArchiveToFile creates a gzip compressed tar file containing the contents of
+// the specified directory.
 //
 // If the directory to archive is specified by a path such as
 // "/tmp/myfiles/backups/weekly", then only the "weekly" directory, and none of
 // its parent path, is added to the tar archive. When extracted, a "weekly"
 // directory is created with all of its archived contents.
-func Create(dir, tarPath string, options ...Option) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
+func ArchiveToFile(dir, tarPath string, options ...Option) error {
 	dir = filepath.Clean(dir)
-	if dir == "" || dir == "." || dir == cwd {
-		return errors.New("cannot archive current directory")
+	if fsutil.IsSubpath(dir, tarPath) {
+		return errors.New("cannot add archive to itself")
 	}
 	tarfile, err := os.Create(tarPath)
 	if err != nil {
 		return err
 	}
-	if err = CreateWriter(dir, tarfile, options...); err != nil {
+	if err = ArchiveToWriter(dir, tarfile, options...); err != nil {
 		_ = tarfile.Close()
 		return err
 	}
@@ -42,9 +40,9 @@ func Create(dir, tarPath string, options ...Option) error {
 	return tarfile.Close()
 }
 
-// Create writes a gzip compressed tar file to an io.Writer. The tar file
+// ArchiveToWriter a gzip compressed tar file to an io.Writer. The tar file
 // contains the contents of the specified directory.
-func CreateWriter(dir string, w io.Writer, options ...Option) error {
+func ArchiveToWriter(dir string, w io.Writer, options ...Option) error {
 	opts := getOpts(options)
 
 	wr := bufio.NewWriter(w)
@@ -179,8 +177,8 @@ func tarAddDir(dir string, ignores []string, tw *tar.Writer) error {
 	return tw.Flush()
 }
 
-// Extract reads gzipped tar data from file into a directory.
-func Extract(tarPath, targetDir string) error {
+// ExtractFromFile reads gzipped tar data from file into a directory.
+func ExtractFromFile(tarPath, targetDir string) error {
 	f, err := os.Open(tarPath)
 	if err != nil {
 		return err
@@ -256,7 +254,7 @@ func ExtractFromReader(r io.Reader, targetDir string) error {
 
 		if mode.IsDir() {
 			if _, err = os.Stat(target); err != nil {
-				if err = os.MkdirAll(target, mode.Perm()); err != nil {
+				if err = os.Mkdir(target, mode.Perm()); err != nil {
 					return err
 				}
 				if uid != -1 || gid != -1 {
@@ -265,7 +263,7 @@ func ExtractFromReader(r io.Reader, targetDir string) error {
 				}
 			}
 		} else if mode.IsRegular() {
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, mode.Perm())
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode.Perm())
 			if err != nil {
 				return err
 			}

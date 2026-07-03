@@ -2,6 +2,7 @@ package targz_test
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"io"
 	"os"
@@ -25,8 +26,22 @@ func TestArchiveDir(t *testing.T) {
 	dataSize := int64(len(dummyData))
 
 	tmpDir := t.TempDir()
+	tarPath := filepath.Join(tmpDir, archName)
+
+	err := targz.ArchiveToFile(tmpDir, tarPath)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "cannot add archive to itself")
+
+	err = targz.ArchiveToFile(filepath.Join(tmpDir, "noSuchDir"), tarPath)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "no such file or directory")
+
+	err = targz.ArchiveToFile(filepath.Join(tmpDir, "noSuchDir", "noSuchSubdir"), tarPath)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "no such file or directory")
+
 	srcDir := filepath.Join(tmpDir, srcName)
-	err := os.Mkdir(srcDir, 0750)
+	err = os.Mkdir(srcDir, 0750)
 	require.NoError(t, err)
 
 	// Write some files to the source directory. These are in alpha-order
@@ -52,8 +67,11 @@ func TestArchiveDir(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
-	tarPath := filepath.Join(tmpDir, archName)
-	err = targz.Create(srcDir, tarPath)
+	err = targz.ArchiveToFile(srcDir, filepath.Join(tmpDir, "noSuchDir", "foo.tar.gz"))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "no such file or directory")
+
+	err = targz.ArchiveToFile(srcDir, tarPath)
 	require.NoError(t, err)
 
 	fi, err := os.Stat(tarPath)
@@ -104,7 +122,7 @@ func TestArchiveDir(t *testing.T) {
 	require.NoError(t, os.RemoveAll(srcDir))
 
 	// Extract the archive.
-	err = targz.Extract(tarPath, tmpDir)
+	err = targz.ExtractFromFile(tarPath, tmpDir)
 	require.NoError(t, err)
 
 	// Verify directory contents.
@@ -169,7 +187,7 @@ func TestIgnore(t *testing.T) {
 	}
 
 	tarPath := filepath.Join(tmpDir, archName)
-	err = targz.Create(srcDir, tarPath, targz.WithIgnore("baz.txt"))
+	err = targz.ArchiveToFile(srcDir, tarPath, targz.WithIgnore("baz.txt"))
 	require.NoError(t, err)
 
 	fi, err := os.Stat(tarPath)
@@ -205,4 +223,86 @@ func TestIgnore(t *testing.T) {
 	}
 	require.ErrorIs(t, err, io.EOF)
 	require.Equal(t, len(files), i, "archive has wrong number of files")
+}
+
+func TestExtractErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+	tarPath := filepath.Join(tmpDir, "no-such-file.tar.gz")
+
+	// Extract missing archive.
+	err := targz.ExtractFromFile(tarPath, tmpDir)
+	require.Error(t, err)
+
+	// Extract from empty buffer.
+	buf := bytes.NewReader([]byte{})
+	err = targz.ExtractFromReader(buf, tmpDir)
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.EOF)
+
+	const (
+		archName    = "test.tar.gz"
+		srcName     = "src/"
+		subDirName  = "sub/"
+		subFileName = "bork.txt"
+	)
+
+	tarPath = filepath.Join(tmpDir, archName)
+
+	srcDir := filepath.Join(tmpDir, srcName)
+	err = os.Mkdir(srcDir, 0750)
+	require.NoError(t, err)
+
+	subDir := filepath.Join(srcDir, subDirName)
+	err = os.Mkdir(subDir, 0750)
+	require.NoError(t, err)
+
+	dummyData := []byte("hello world")
+	f, err := os.Create(filepath.Join(subDir, subFileName))
+	require.NoError(t, err)
+	_, err = f.Write(dummyData)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	err = targz.ArchiveToFile(srcDir, tarPath)
+	require.NoError(t, err)
+
+	fi, err := os.Stat(tarPath)
+	require.NoError(t, err)
+
+	// Extract to non-existing location.
+	badDirPath := filepath.Join(tmpDir, "no-such-dir")
+	err = targz.ExtractFromFile(tarPath, badDirPath)
+	require.Error(t, err)
+
+	outDir := t.TempDir()
+
+	// Create a file that blocks extraction
+	targetDir := filepath.Join(outDir, srcName, subDirName)
+	err = os.MkdirAll(targetDir, 0750)
+	require.NoError(t, err)
+	target := filepath.Join(targetDir, subFileName)
+	blocker, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0400)
+	require.NoError(t, err)
+	defer func() {
+		_ = blocker.Close()
+	}()
+	err = targz.ExtractFromFile(tarPath, outDir)
+	require.Error(t, err)
+	require.ErrorIs(t, err, os.ErrPermission)
+	require.NoError(t, blocker.Close())
+	require.NoError(t, os.RemoveAll(targetDir))
+
+	// Truncate the file in half.
+	err = os.Truncate(tarPath, fi.Size()/2)
+	require.NoError(t, err)
+
+	// Extract the corrupted archive.
+	err = targz.ExtractFromFile(tarPath, tmpDir)
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+
+	// Extract from non-tar-gzip file.
+	err = targz.ExtractFromFile(f.Name(), tmpDir)
+	require.Error(t, err)
+	require.ErrorIs(t, err, gzip.ErrHeader)
 }
