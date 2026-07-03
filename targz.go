@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/gammazero/fsutil"
 )
 
 // ArchiveToFile creates a gzip compressed tar file containing the contents of
@@ -22,13 +24,9 @@ import (
 // its parent path, is added to the tar archive. When extracted, a "weekly"
 // directory is created with all of its archived contents.
 func ArchiveToFile(dir, tarPath string, options ...Option) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
 	dir = filepath.Clean(dir)
-	if dir == "" || dir == "." || dir == cwd {
-		return errors.New("cannot archive current directory")
+	if fsutil.IsSubpath(dir, tarPath) {
+		return errors.New("cannot add archive to itself")
 	}
 	tarfile, err := os.Create(tarPath)
 	if err != nil {
@@ -256,7 +254,7 @@ func ExtractFromReader(r io.Reader, targetDir string) error {
 
 		if mode.IsDir() {
 			if _, err = os.Stat(target); err != nil {
-				if err = os.MkdirAll(target, mode.Perm()); err != nil {
+				if err = os.Mkdir(target, mode.Perm()); err != nil {
 					return err
 				}
 				if uid != -1 || gid != -1 {
@@ -265,7 +263,7 @@ func ExtractFromReader(r io.Reader, targetDir string) error {
 				}
 			}
 		} else if mode.IsRegular() {
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, mode.Perm())
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode.Perm())
 			if err != nil {
 				return err
 			}
